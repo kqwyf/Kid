@@ -21,7 +21,7 @@ def with_path(p):
 
 ASK_FILE='cx.m.train'
 ANSWER_FILE='cx.t.train'
-DICTIONARY_PATH = 'db/dictionary.json'
+DICTIONARY_PATH = 'dictionary.json'
 EOS = '<eos>'
 UNK = '<unk>'
 PAD = '<pad>'
@@ -52,15 +52,18 @@ def time(s):
     return ret
 
 def load_dictionary():
-    with open(with_path(DICTIONARY_PATH), 'r' , encoding="UTF-8") as fp:
-        dictionary = [EOS, UNK, PAD, GO] + json.load(fp)
-        index_word = OrderedDict()
-        word_index = OrderedDict()
-        for index, word in enumerate(dictionary):
-            index_word[index] = word
-            word_index[word] = index
-        dim = len(dictionary)
-    return dim, dictionary, index_word, word_index
+    if os.path.exists(DICTIONARY_PATH):
+        with open(with_path(DICTIONARY_PATH), 'r' , encoding="UTF-8") as fp:
+            dictionary = [EOS, UNK, PAD, GO] + json.load(fp)
+            index_word = OrderedDict()
+            word_index = OrderedDict()
+            for index, word in enumerate(dictionary):
+                index_word[index] = word
+                word_index[word] = index
+            dim = len(dictionary)
+        return dim, dictionary, index_word, word_index
+    else:
+        return 4,None,{0:EOS,1:UNK,2:PAD,3:GO},{EOS:0,UNK:1,PAD:2,GO:3}
 
 
 """
@@ -98,7 +101,7 @@ class BucketData(object):
         #sql = '''SELECT MAX(ROWID) FROM conversation;'''
         #self.size = self.cur.execute(sql).fetchall()[0][0] # 问答数
         fpask=open(ASK_FILE,'r',encoding="UTF-8")
-        fpanswer=open(ANSWER_FILE)
+        fpanswer=open(ANSWER_FILE,'r',encoding="UTF-8")
         self.size=0
         self.asks=[]
         self.answers=[]
@@ -152,7 +155,9 @@ def sentence_indice(sentence): # embedding
         if word in word_index:
             ret.append(word_index[word])
         else:
-            ret.append(word_index[UNK])
+            ret.append(len(word_index))
+            word_index[word]=len(word_index)
+            dim+=1
     return ret
 
 

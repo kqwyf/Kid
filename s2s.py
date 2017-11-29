@@ -129,7 +129,7 @@ def train():
         #　构建模型
         model = create_model(sess, False)
         # 初始化变量
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
         buckets_scale = [
             sum(bucket_sizes[:i + 1]) / total_size
             for i in range(len(bucket_sizes))
@@ -222,7 +222,7 @@ def test_bleu(count):
         model = create_model(sess, True)
         model.batch_size = 1
         # 初始化变量
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
         model.saver.restore(sess, os.path.join(FLAGS.model_dir, FLAGS.model_name))
 
         total_score = 0.0
@@ -277,7 +277,7 @@ def test():
         model = create_model(sess, True)
         model.batch_size = 1
         # 初始化变量
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
         model.saver.restore(sess, os.path.join(FLAGS.model_dir, FLAGS.model_name))
         sys.stdout.write("> ")
         sys.stdout.flush()
@@ -312,19 +312,13 @@ def test():
             sentence = sys.stdin.readline()
 
 def main(_):
-    print("开始运行")
     if FLAGS.bleu > -1:
-        print("if 1")
         test_bleu(FLAGS.bleu)
     elif FLAGS.test:
-        print("test")
         test()
     else:
-        print("train")
         train()
-print("start")
 if __name__ == '__main__':
-    print("enter")
     np.random.seed(0)
     tf.set_random_seed(0)
     tf.app.run()
