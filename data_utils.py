@@ -19,6 +19,8 @@ def with_path(p):
     current_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(current_dir, p)
 
+DIM=500
+MAX_SENTENCE_NUMBER=20
 ASK_FILE='cx.m.train'
 ANSWER_FILE='cx.t.train'
 DICTIONARY_PATH = 'dictionary.json'
@@ -63,7 +65,7 @@ def load_dictionary():
             dim = len(dictionary)
         return dim, dictionary, index_word, word_index
     else:
-        return 4,None,{0:EOS,1:UNK,2:PAD,3:GO},{EOS:0,UNK:1,PAD:2,GO:3}
+        return DIM,None,{0:EOS,1:UNK,2:PAD,3:GO},{EOS:0,UNK:1,PAD:2,GO:3}
 
 
 """
@@ -105,10 +107,17 @@ class BucketData(object):
         self.size=0
         self.asks=[]
         self.answers=[]
-        for line in fpask:
-            self.asks.append(line)
-        for line in fpanswer:
-            self.answers.append(line)
+        for l1,l2 in zip(fpask,fpanswer):
+            if encoder_size-5<len(l1.split())<=encoder_size and len(l2.split())<=decoder_size:
+                self.asks.append(l1)
+                self.answers.append(l2)
+                self.size+=1
+                if self.size>MAX_SENTENCE_NUMBER:
+                    break
+        """for line in fpanswer:
+            if decoder_size-5<len(line.split())<=decoder_size:
+                self.answers.append(line)
+        """
 
     def all_answers(self, ask): # 搜索ask的所有answer
         #sql = '''
@@ -150,14 +159,14 @@ def read_bucket_dbs(buckets_dir): # 读取问答文件
 
 
 def sentence_indice(sentence): # embedding
+    global dim
     ret = []
-    for  word in sentence:
+    for  word in sentence.split():
         if word in word_index:
             ret.append(word_index[word])
         else:
             ret.append(len(word_index))
             word_index[word]=len(word_index)
-            dim+=1
     return ret
 
 

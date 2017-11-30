@@ -95,6 +95,7 @@ buckets = data_utils.buckets
 
 def create_model(session, forward_only):
     """建立模型"""
+    print("dim={}".format(data_utils.dim))
     dtype = tf.float16 if FLAGS.use_fp16 else tf.float32
     model = s2s_model.S2SModel(
         data_utils.dim,
@@ -113,10 +114,11 @@ def create_model(session, forward_only):
     return model
 
 def train():
+    print("进入训练模式")
     """训练模型"""
     # 准备数据
     print('准备数据')
-    bucket_dbs = data_utils.read_bucket_dbs(FLAGS.buckets_dir)
+    bucket_dbs = data_utils.read_bucket_dbs(FLAGS.buckets_dir) # BucketData列表
     bucket_sizes = []
     for i in range(len(buckets)):
         bucket_size = bucket_dbs[i].size
@@ -124,17 +126,23 @@ def train():
         print('bucket {} 中有数据 {} 条'.format(i, bucket_size))
     total_size = sum(bucket_sizes)
     print('共有数据 {} 条'.format(total_size))
+    print("开始training")
     # 开始建模与训练
     with tf.Session() as sess:
         #　构建模型
+        print("构建模型")
         model = create_model(sess, False)
+        print("构建完毕")
         # 初始化变量
+        print("初始化变量")
         sess.run(tf.global_variables_initializer())
-        buckets_scale = [
+        buckets_scale = [ # buckets大小前缀和
             sum(bucket_sizes[:i + 1]) / total_size
             for i in range(len(bucket_sizes))
         ]
+        print("初始化完毕")
         # 开始训练
+        print("开始训练")
         metrics = '  '.join([
             '\r[{}]',
             '{:.1f}%',
@@ -151,19 +159,29 @@ def train():
             while True:
                 # 选择一个要训练的bucket
                 random_number = np.random.random_sample()
+                print("random number:{}".format(random_number))
                 bucket_id = min([
                     i for i in range(len(buckets_scale))
                     if buckets_scale[i] > random_number
                 ])
+                print("bucket_id:{}".format(bucket_id))
                 data, data_in = model.get_batch_data(
                     bucket_dbs,
                     bucket_id
                 )
+                print("data:")
+                print(data)
                 encoder_inputs, decoder_inputs, decoder_weights = model.get_batch(
                     bucket_dbs,
                     bucket_id,
                     data
                 )
+                print("encoder_inputs:")
+                print(encoder_inputs)
+                print("decoder_inputs:")
+                print(decoder_inputs)
+                print("decoder_weights:")
+                print(decoder_weights)
                 _, step_loss, output = model.step(
                     sess,
                     encoder_inputs,
@@ -197,6 +215,7 @@ def train():
 
 
 def test_bleu(count):
+    print("进入bleu测试模式")
     """测试bleu"""
     from nltk.translate.bleu_score import sentence_bleu
     from tqdm import tqdm
@@ -267,6 +286,7 @@ def test_bleu(count):
 
 #测试模型
 def test():
+    print("进入测试模式")
     class TestBucket(object):
         def __init__(self, sentence):
             self.sentence = sentence
@@ -274,11 +294,15 @@ def test():
             return sentence, ''
     with tf.Session() as sess:
         #　构建模型
+        print("创建模型")
         model = create_model(sess, True)
         model.batch_size = 1
         # 初始化变量
+        print("初始化变量")
         sess.run(tf.global_variables_initializer())
+        print("加载模型数据")
         model.saver.restore(sess, os.path.join(FLAGS.model_dir, FLAGS.model_name))
+        print("开始测试")
         sys.stdout.write("> ")
         sys.stdout.flush()
         sentence = sys.stdin.readline()
