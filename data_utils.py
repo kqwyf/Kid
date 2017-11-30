@@ -20,7 +20,7 @@ def with_path(p):
     return os.path.join(current_dir, p)
 
 DIM=500
-MAX_SENTENCE_NUMBER=20
+MAX_SENTENCE_NUMBER=200000
 ASK_FILE='cx.m.train'
 ANSWER_FILE='cx.t.train'
 DICTIONARY_PATH = 'dictionary.json'
@@ -159,22 +159,24 @@ def read_bucket_dbs(buckets_dir): # 读取问答文件
 
 
 def sentence_indice(sentence): # embedding
-    global dim
+    global dim,index_word,word_index
     ret = []
     for  word in sentence.split():
         if word in word_index:
             ret.append(word_index[word])
         else:
             ret.append(len(word_index))
+            index_word[len(word_index)]=word
             word_index[word]=len(word_index)
     return ret
 
 
 
 def indice_sentence(indice): # imbedding
+    global index_word
     ret = []
     for index in indice:
-        word = index_word[index]
+        word = index_word[index] if index in index_word else UNK
         if word == EOS:
             break
         if word != UNK and word != GO and word != PAD:

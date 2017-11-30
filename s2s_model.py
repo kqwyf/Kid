@@ -241,13 +241,13 @@ class S2SModel(object):
 			for i in range(decoder_size):
 				output_feed.append(self.outputs[bucket_id][i]) # 输出句
 
-		print("input_feed:")
-		print(input_feed)
-		print("output_feed:")
-		print(output_feed)
-		print("运行会话")
+		#print("input_feed:")
+		#print(input_feed)
+		#print("output_feed:")
+		#print(output_feed)
+		#print("运行会话")
 		outputs = session.run(output_feed, input_feed)
-		print("会话结束")
+		#print("会话结束")
 		if not forward_only:
 			return outputs[1], outputs[2], outputs[3:]
 		else:
