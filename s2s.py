@@ -46,7 +46,7 @@ tf.app.flags.DEFINE_integer(
 )
 tf.app.flags.DEFINE_integer(
     'num_epoch',
-    5,
+    2,
     '训练几轮'
 )
 tf.app.flags.DEFINE_integer(
@@ -56,7 +56,7 @@ tf.app.flags.DEFINE_integer(
 )
 tf.app.flags.DEFINE_integer(
     'num_per_epoch',
-    100000,
+    3200,
     '每轮训练多少随机样本'
 )
 tf.app.flags.DEFINE_string(
@@ -118,13 +118,19 @@ def train():
     """训练模型"""
     # 准备数据
     print('准备数据')
-    bucket_dbs = data_utils.read_bucket_dbs(FLAGS.buckets_dir) # BucketData列表
+    for askfile,answerfile in data_utils.BUCKET_FILES:
+        bucket_dbs=data_utils.read_bucket_dbs(askfile,answerfile) # BucketData列表
+    print("dim={}".format(data_utils.dim))
     bucket_sizes = []
-    for i in range(len(buckets)):
+    for i in range(len(data_utils.buckets)):
         bucket_size = bucket_dbs[i].size
         bucket_sizes.append(bucket_size)
         print('bucket {} 中有数据 {} 条'.format(i, bucket_size))
     total_size = sum(bucket_sizes)
+    buckets_scale = [ # buckets大小前缀和
+        sum(bucket_sizes[:i + 1]) / total_size
+        for i in range(len(bucket_sizes))
+    ]
     print('共有数据 {} 条'.format(total_size))
     print("开始training")
     # 开始建模与训练
@@ -136,10 +142,6 @@ def train():
         # 初始化变量
         print("初始化变量")
         sess.run(tf.global_variables_initializer())
-        buckets_scale = [ # buckets大小前缀和
-            sum(bucket_sizes[:i + 1]) / total_size
-            for i in range(len(bucket_sizes))
-        ]
         print("初始化完毕")
         # 开始训练
         print("开始训练")
@@ -159,7 +161,7 @@ def train():
             while True:
                 # 选择一个要训练的bucket
                 random_number = np.random.random_sample()
-                print("random number:{}".format(random_number))
+                #print("random number:{}".format(random_number))
                 bucket_id = min([
                     i for i in range(len(buckets_scale))
                     if buckets_scale[i] > random_number
@@ -169,19 +171,19 @@ def train():
                     bucket_dbs,
                     bucket_id
                 )
-                print("data:")
-                print(data)
+                #print("data:")
+                #print(data)
                 encoder_inputs, decoder_inputs, decoder_weights = model.get_batch(
                     bucket_dbs,
                     bucket_id,
                     data
                 )
-                print("encoder_inputs:")
-                print(encoder_inputs)
-                print("decoder_inputs:")
-                print(decoder_inputs)
-                print("decoder_weights:")
-                print(decoder_weights)
+                #print("encoder_inputs:")
+                #print(encoder_inputs)
+                #print("decoder_inputs:")
+                #print(decoder_inputs)
+                #print("decoder_weights:")
+                #print(decoder_weights)
                 _, step_loss, output = model.step(
                     sess,
                     encoder_inputs,
@@ -209,9 +211,11 @@ def train():
                     break
             print('\n')
 
-        if not os.path.exists(FLAGS.model_dir):
-            os.makedirs(FLAGS.model_dir)
-        model.saver.save(sess, os.path.join(FLAGS.model_dir, FLAGS.model_name))
+            if not os.path.exists(FLAGS.model_dir):
+                os.makedirs(FLAGS.model_dir)
+            print("保存模型数据中……")
+            model.saver.save(sess, os.path.join(FLAGS.model_dir, FLAGS.model_name))
+        print("程序正在退出……")
 
 
 def test_bleu(count):

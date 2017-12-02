@@ -1,41 +1,38 @@
 #!/usr/bin/env python3
 
-__author__ = 'qhduan@memect.co'
-
 import os
 import sys
 import json
 import math
 import shutil
 import pickle
-import sqlite3
+#import sqlite3
 from collections import OrderedDict, Counter
 
 import numpy as np
 from tqdm import tqdm
 #生成与 __file__同一目录下p的文件的路径
-# http://andylin02.iteye.com/blog/933237
 def with_path(p):
     current_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(current_dir, p)
 
 DIM=500
 MAX_SENTENCE_NUMBER=200000
-ASK_FILE='cx.m.train'
-ANSWER_FILE='cx.t.train'
+BUCKET_FILES=[('cx.m.train','cx.t.train'),('cx.m.valid','cx.t.valid'),('wb.m.train','wb.t.train')]
 DICTIONARY_PATH = 'dictionary.json'
 EOS = '<eos>'
 UNK = '<unk>'
 PAD = '<pad>'
 GO = '<go>'
 
-# 我一般是逗号放到句子后面的……
-# 不过这样比较方便屏蔽某一行，如果是JS就不用这样了，因为JS的JSON语法比较松，允许多余逗号
 buckets = [
-    (5, 15)
-    , (10, 20)
-    , (15, 25)
-    , (20, 30)
+    #(5, 15),
+    (10, 20),
+    (15, 25),
+    (20, 30),
+    (25, 35),
+    (30, 40),
+    (35, 45)
 ]
 
 def time(s):
@@ -84,8 +81,6 @@ def load_model(sess, name='model.ckpt'):
 
 dim, dictionary, index_word, word_index = load_dictionary()
 
-print('dim: ', dim)
-
 EOS_ID = word_index[EOS]
 UNK_ID = word_index[UNK]
 PAD_ID = word_index[PAD]
@@ -93,7 +88,8 @@ GO_ID = word_index[GO]
 
 class BucketData(object):
 
-    def __init__(self, buckets_dir, encoder_size, decoder_size):
+    #def __init__(self, buckets_dir, encoder_size, decoder_size):
+    def __init__(self, encoder_size, decoder_size):
         self.encoder_size = encoder_size
         self.decoder_size = decoder_size
         #self.name = 'bucket_%d_%d.db' % (encoder_size, decoder_size)
@@ -102,18 +98,9 @@ class BucketData(object):
         #self.cur = self.conn.cursor()
         #sql = '''SELECT MAX(ROWID) FROM conversation;'''
         #self.size = self.cur.execute(sql).fetchall()[0][0] # 问答数
-        fpask=open(ASK_FILE,'r',encoding="UTF-8")
-        fpanswer=open(ANSWER_FILE,'r',encoding="UTF-8")
         self.size=0
         self.asks=[]
         self.answers=[]
-        for l1,l2 in zip(fpask,fpanswer):
-            if encoder_size-5<len(l1.split())<=encoder_size and len(l2.split())<=decoder_size:
-                self.asks.append(l1)
-                self.answers.append(l2)
-                self.size+=1
-                if self.size>MAX_SENTENCE_NUMBER:
-                    break
         """for line in fpanswer:
             if decoder_size-5<len(line.split())<=decoder_size:
                 self.answers.append(line)
@@ -147,14 +134,34 @@ class BucketData(object):
             #    if ask is not None and answer is not None:
             #        return ask, answer
 
-
-
-def read_bucket_dbs(buckets_dir): # 读取问答文件
-    ret = []
-    for encoder_size, decoder_size in buckets:
-        bucket_data = BucketData(buckets_dir, encoder_size, decoder_size)
-        ret.append(bucket_data)
-    return ret
+bucket_dbs=[BucketData(i,j) for i,j in buckets]
+# 将读取文件和分割buckets操作放在此函数内，以支持读取多个文件
+def read_bucket_dbs(askfile, answerfile): # 读取问答文件
+    global dim
+    fpask=open(askfile,'r',encoding="UTF-8")
+    fpanswer=open(answerfile,'r',encoding="UTF-8")
+    count=0
+    for l1,l2 in zip(fpask,fpanswer):
+        #if encoder_size-5<len(l1.split())<=encoder_size and len(l2.split())<=decoder_size:
+        len1,len2=len(l1.split()),len(l2.split())
+        tmp=min([100] + [i for i in range(len(buckets)) if len1<=buckets[i][0] and len2<=buckets[i][1]])
+        if tmp!=100:
+            bucket_dbs[tmp].asks.append(l1)
+            bucket_dbs[tmp].answers.append(l2)
+            bucket_dbs[tmp].size+=1
+            count+=1
+            for word in l1.split():
+                if not word in word_index:
+                    index_word[len(index_word)]=word
+                    word_index[word]=len(word_index)
+            for word in l2.split():
+                if not word in word_index:
+                    index_word[len(index_word)]=word
+                    word_index[word]=len(word_index)
+            if count>MAX_SENTENCE_NUMBER:
+                break
+    dim = max(dim,len(index_word))
+    return bucket_dbs
 
 
 
@@ -165,9 +172,7 @@ def sentence_indice(sentence): # embedding
         if word in word_index:
             ret.append(word_index[word])
         else:
-            ret.append(len(word_index))
-            index_word[len(word_index)]=word
-            word_index[word]=len(word_index)
+            ret.append(1)
     return ret
 
 
@@ -189,7 +194,7 @@ def vector_sentence(vector):
     return indice_sentence(vector.argmax(axis=1))
 
 
-
+"""
 def generate_bucket_dbs(
         input_dir,
         output_dir,
@@ -206,7 +211,7 @@ def generate_bucket_dbs(
             path = os.path.join(output_dir, name)
             conn = sqlite3.connect(path)
             cur = conn.cursor()
-            cur.execute("""CREATE TABLE IF NOT EXISTS conversation (ask text, answer text);""")
+            cur.execute("CREATE TABLE IF NOT EXISTS conversation (ask text, answer text);)
             conn.commit()
             pool[key] = (conn, cur)
         return pool[key]
@@ -243,9 +248,9 @@ def generate_bucket_dbs(
                 for encoder_size, decoder_size, ask, answer in wait_insert:
                     key = (encoder_size, decoder_size)
                     conn, cur = _get_conn(key)
-                    cur.execute("""
+                    cur.execute(""#""
                     INSERT INTO conversation (ask, answer) VALUES ('{}', '{}');
-                    """.format(ask.replace("'", "''"), answer.replace("'", "''")))
+                    ""#".format(ask.replace("'", "''"), answer.replace("'", "''")))
                     all_inserted[key] += 1
                 for conn, _ in pool.values():
                     conn.commit()
@@ -314,3 +319,4 @@ if __name__ == '__main__':
         print(key)
         print(inserted_count)
     print('done')
+"""
